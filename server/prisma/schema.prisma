@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  DOCTOR
+  HOSPITAL_ADMIN
+  SUPER_ADMIN
+}
+
+enum RecordType {
+  DIAGNOSIS
+  PRESCRIPTION
+  LAB_REPORT
+  MEDICAL_HISTORY
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  role         Role
+  name         String
+  mobile       String?  @unique
+  email        String?  @unique
+  nationalId   String?  @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  patient       Patient?
+  doctor        Doctor?
+  notifications Notification[]
+  auditLogs     AuditLog[]
+}
+
+model Hospital {
+  id          Int      @id @default(autoincrement())
+  name        String
+  address     String
+  adminUserId Int?     @unique
+
+  doctors      Doctor[]
+  appointments Appointment[]
+}
+
+model Patient {
+  userId     Int       @id
+  dob        DateTime?
+  gender     String?
+  address    String?
+  bloodGroup String?
+  qrCodeId   String?   @unique
+  photoUrl   String?
+
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  records      HealthRecord[]
+  appointments Appointment[]
+  auditLogs    AuditLog[]
+  accessGrants AccessGrant[]
+}
+
+model Doctor {
+  userId         Int     @id
+  hospitalId     Int
+  specialization String
+  licenseNo      String  @unique
+  verifiedStatus Boolean @default(false)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital     Hospital      @relation(fields: [hospitalId], references: [id])
+  records      HealthRecord[]
+  appointments Appointment[]
+  accessGrants AccessGrant[]
+}
+
+model HealthRecord {
+  id           Int        @id @default(autoincrement())
+  patientId    Int
+  doctorId     Int
+  type         RecordType
+  content      String
+  fileUrl      String?
+  recordHash   String?
+  previousHash String?
+  createdAt    DateTime   @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [userId])
+  doctor  Doctor  @relation(fields: [doctorId], references: [userId])
+
+  auditLogs AuditLog[]
+}
+
+model Appointment {
+  id         Int               @id @default(autoincrement())
+  patientId  Int
+  doctorId   Int
+  hospitalId Int
+  date       DateTime
+  timeSlot   String
+  status     AppointmentStatus @default(PENDING)
+
+  patient  Patient  @relation(fields: [patientId], references: [userId])
+  doctor   Doctor   @relation(fields: [doctorId], references: [userId])
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+}
+
+model Notification {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  message    String
+  type       String
+  sentAt     DateTime?
+  readStatus Boolean   @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id               Int      @id @default(autoincrement())
+  accessedByUserId Int
+  patientId        Int?
+  recordId         Int?
+  action           String
+  timestamp        DateTime @default(now())
+
+  accessedBy User          @relation(fields: [accessedByUserId], references: [id])
+  patient    Patient?      @relation(fields: [patientId], references: [userId])
+  record     HealthRecord? @relation(fields: [recordId], references: [id])
+}
+
+model AccessGrant {
+  id        Int       @id @default(autoincrement())
+  patientId Int
+  doctorId  Int
+  expiresAt DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [userId])
+  doctor  Doctor  @relation(fields: [doctorId], references: [userId])
+
+  @@unique([patientId, doctorId])
+}
+
+model OtpChallenge {
+  id         Int      @id @default(autoincrement())
+  identifier String
+  otpHash    String
+  expiresAt  DateTime
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
