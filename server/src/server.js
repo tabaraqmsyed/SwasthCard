@@ -1,3 +1,5 @@
+
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -68,18 +70,36 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Mount routes
+// Mount API routes
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/hospitals", hospitalRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/records", recordRoutes);
 app.use("/api/patient", patientRoutes);
 
-// Public emergency profile route.
-// This route intentionally does not require login.
+// Public emergency profile API.
+// The emergency route itself must return only approved public information.
 app.use("/api/emergency", emergencyRoutes);
 
-// 404 handler
+// Serve the production React frontend from client/dist.
+const clientDistPath = path.resolve(__dirname, "../../client/dist");
+
+app.use(express.static(clientDistPath));
+
+// Support React routes, including /emergency/:token.
+// Do not send index.html for unknown API endpoints.
+app.get(/^(?!\/api(?:\/|$)).*/, (req, res, next) => {
+  res.sendFile(
+    path.join(clientDistPath, "index.html"),
+    (err) => {
+      if (err) {
+        next(err);
+      }
+    }
+  );
+});
+
+// API 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -100,5 +120,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`SwasthCard server running on http://localhost:${PORT}`);
+  console.log(`SwasthCard server running on port ${PORT}`);
 });
